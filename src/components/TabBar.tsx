@@ -86,7 +86,10 @@ export default function TabBar({
         <div className="mx-auto max-w-5xl rounded-[1.7rem] px-1.5 py-1.5 glass-dock lg:rounded-2xl lg:px-3 lg:py-2">
           <div className="grid grid-cols-6">
             {TABS.map((t) => {
-              const active = tab === t.id && (t.id !== 'more' || moreOpen);
+              const active =
+                t.id === 'more'
+                  ? tab === 'more' || moreOpen
+                  : tab === t.id;
               return (
                 <button
                   key={t.id}

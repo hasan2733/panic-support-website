@@ -50,6 +50,7 @@ function Shell() {
   };
 
   const goMore = (v: Exclude<MoreView, null>) => {
+    setTab('more');
     setMoreView(v);
     setMoreOpen(false);
     window.scrollTo({ top: 0 });
@@ -82,7 +83,7 @@ function Shell() {
       case 'learn':
         return <LearningLibrary />;
       case 'chat':
-        return <AIChat onTab={goTab} />;
+        return <AIChat onSettings={() => goMore('settings')} />;
       case 'more':
         return null;
     }

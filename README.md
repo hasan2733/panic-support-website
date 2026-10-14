@@ -118,8 +118,34 @@ build output directory is `dist`. Set any required `VITE_FIREBASE_*` build
 variables in the deployment provider's environment settings. Never add a real
 `.env` file or an OpenRouter key to GitHub.
 
-For manual updates after the initial configuration, run `npm ci`, `npm run build`,
-then `npx firebase-tools deploy --only hosting`.
+### Sync and publish later code changes
+
+If Firebase Hosting is connected to your GitHub repository for automatic
+deployments, commit and push your changes; Firebase will build and publish the
+configured production branch:
+
+```bash
+git add -A
+git commit -m "Describe the update"
+git push
+```
+
+If you deploy manually with the Firebase CLI, pull the latest code first, then
+build and deploy Hosting:
+
+```bash
+git pull
+npm ci
+npm run build
+npx firebase-tools deploy --only hosting --project YOUR_FIREBASE_PROJECT_ID
+```
+
+Replace `YOUR_FIREBASE_PROJECT_ID` with the project serving your current site.
+If Firebase Hosting has not been initialized in this checkout yet, run
+`npx firebase-tools init hosting` once, choose the existing Firebase project,
+use `dist` as the public directory, and enable the single-page app rewrite.
+Only deploy Firestore rules when those rules have intentionally changed:
+`npx firebase-tools deploy --only firestore:rules --project YOUR_FIREBASE_PROJECT_ID`.
 
 ## Privacy and repository visibility
 

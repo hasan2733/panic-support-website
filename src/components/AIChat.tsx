@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCollection } from '../hooks/useCollection';
 import { addItem, deleteItem } from '../lib/db';
-import type { ChatMessage, TabId } from '../types';
+import type { ChatMessage } from '../types';
 import { Card, EmptyState, GhostButton, PageHeader, SafetyNote, Screen } from './ui';
 import { IconChat, IconKey, IconSend } from './icons';
 
@@ -43,7 +43,11 @@ interface ApiMsg {
   content: string;
 }
 
-export default function AIChat({ onTab }: { onTab: (t: TabId) => void }) {
+export default function AIChat({
+  onSettings,
+}: {
+  onSettings: () => void;
+}) {
   const { user } = useAuth();
   const uid = user?.uid ?? null;
   const { items: messages } = useCollection<ChatMessage>(uid, 'chatMessages');
@@ -151,7 +155,7 @@ export default function AIChat({ onTab }: { onTab: (t: TabId) => void }) {
             body="The chat uses your own free OpenRouter API key. It stays in this browser only — never on any server."
           />
           <button
-            onClick={() => onTab('more')}
+            onClick={onSettings}
             className="w-full rounded-2xl bg-glow-400 text-night-950 font-semibold px-4 py-3.5 hover:bg-glow-300"
           >
             Go to Settings
@@ -247,7 +251,7 @@ export default function AIChat({ onTab }: { onTab: (t: TabId) => void }) {
             <IconSend className="w-5 h-5" />
           </button>
         </div>
-        <GhostButton onClick={() => onTab('more')} className="mt-2 !py-1.5 !text-xs">
+        <GhostButton onClick={onSettings} className="mt-2 !py-1.5 !text-xs">
           Change API key / model in Settings
         </GhostButton>
       </div>
