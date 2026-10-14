@@ -1,0 +1,16 @@
+rules_version = '2';
+
+// Panic Support Website — Firestore security rules.
+// Every user's personal data lives under users/{uid}/... and only that
+// authenticated user may read or write their own tree. Nothing is shared
+// between users, and anonymous (logged-out) access is fully denied.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+// (or paste into Firebase console → Firestore Database → Rules → Publish)
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
