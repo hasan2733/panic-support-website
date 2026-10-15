@@ -59,6 +59,8 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   createdAt: number;
+  /** When this message was written (ms since epoch). Defaults to createdAt. */
+  timestamp?: number;
 }
 
 /** A named free-text plan, e.g. the safety plan or coping card. */

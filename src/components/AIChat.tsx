@@ -1,7 +1,7 @@
 /**
  * AI Chat — a CBT-oriented reflection companion powered by OpenRouter.
- * The user enters their OWN OpenRouter API key in Settings; it is stored
- * only in the browser's localStorage, masked in the UI, and never logged.
+ * The user's OpenRouter API key stays in localStorage unless account sync is
+ * enabled. It is masked in the UI and never logged.
  * The assistant is bounded: supportive CBT coaching only — never diagnoses,
  * never gives medical advice, and NEVER generates/quotes/paraphrases
  * Quranic verses, hadith, or duas.
@@ -9,15 +9,27 @@
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useCollection } from '../hooks/useCollection';
+import {
+  getStoredKey,
+  getStoredModel,
+  useSyncedSettings,
+} from '../hooks/useSyncedSettings';
 import { addItem, deleteItem } from '../lib/db';
 import type { ChatMessage } from '../types';
 import { Card, EmptyState, GhostButton, PageHeader, SafetyNote, Screen } from './ui';
-import { IconChat, IconKey, IconSend } from './icons';
+import { IconChat, IconKey, IconSend, IconSent } from './icons';
 
-const KEY_STORAGE = 'psw_openrouter_key';
-const MODEL_STORAGE = 'psw_openrouter_model';
-const DEFAULT_MODEL =
-  import.meta.env.VITE_OPENROUTER_MODEL || 'openai/gpt-oss-20b:free';
+/** Render a local date and time so older messages are unambiguous. */
+function formatDateTime(ts: number): string {
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleString([], {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
 
 const SYSTEM_PROMPT = `You are a supportive CBT (cognitive behavioral therapy) reflection companion inside a personal panic-disorder support app. Your role:
 
@@ -29,14 +41,6 @@ const SYSTEM_PROMPT = `You are a supportive CBT (cognitive behavioral therapy) r
 - If the user describes a crisis, self-harm, or urges to harm themselves or others, respond with care and urge them to contact a trusted person, a local crisis helpline, or emergency services immediately.
 - Encourage professional treatment as a complement to self-help, never as a replacement.
 - Do not reinforce reassurance-seeking loops: avoid repeatedly telling the user they are "safe" as a certainty; instead help them tolerate uncertainty and choose valued actions.`;
-
-export function getStoredKey(): string {
-  return localStorage.getItem(KEY_STORAGE) || '';
-}
-
-export function getStoredModel(): string {
-  return localStorage.getItem(MODEL_STORAGE) || DEFAULT_MODEL;
-}
 
 interface ApiMsg {
   role: 'system' | 'user' | 'assistant';
@@ -50,7 +54,11 @@ export default function AIChat({
 }) {
   const { user } = useAuth();
   const uid = user?.uid ?? null;
-  const { items: messages } = useCollection<ChatMessage>(uid, 'chatMessages');
+  const { items: messages, loading, error: messagesError } = useCollection<ChatMessage>(
+    uid,
+    'chatMessages',
+  );
+  const { error: settingsError } = useSyncedSettings(uid);
 
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
@@ -58,6 +66,12 @@ export default function AIChat({
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const hasKey = getStoredKey().length > 0;
+  const sortedMessages = [...messages].sort(
+    (a, b) =>
+      (a.timestamp ?? a.createdAt) - (b.timestamp ?? b.createdAt) ||
+      a.createdAt - b.createdAt ||
+      a.id.localeCompare(b.id),
+  );
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -75,15 +89,18 @@ export default function AIChat({
     setSending(true);
     setInput('');
     try {
+      const now = Date.now();
       // Save the user's message first.
-      await addItem(uid, 'chatMessages', { role: 'user', content: text });
+      await addItem(uid, 'chatMessages', {
+        role: 'user',
+        content: text,
+        timestamp: now,
+      });
 
       // Build a short history window for context.
-      // useCollection returns newest-first, so take the 20 most recent
-      // and flip them into chronological order for the API.
-      const history: ApiMsg[] = messages
-        .slice(0, 20)
-        .reverse()
+      // Use the same chronological order shown in the transcript.
+      const history: ApiMsg[] = sortedMessages
+        .slice(-20)
         .map((m) => ({ role: m.role, content: m.content }));
       history.push({ role: 'user', content: text });
 
@@ -120,7 +137,11 @@ export default function AIChat({
       const reply: string =
         data?.choices?.[0]?.message?.content?.trim() ||
         'I could not generate a reply just now. Please try again.';
-      await addItem(uid, 'chatMessages', { role: 'assistant', content: reply });
+      await addItem(uid, 'chatMessages', {
+        role: 'assistant',
+        content: reply,
+        timestamp: Date.now(),
+      });
     } catch (e) {
       setError(
         e instanceof Error
@@ -140,36 +161,6 @@ export default function AIChat({
     }
   };
 
-  if (!hasKey) {
-    return (
-      <Screen>
-        <PageHeader
-          kicker="Companion"
-          title="Reflection chat"
-          sub="A CBT reflection companion. Not a therapist, not medical advice."
-        />
-        <Card>
-          <EmptyState
-            icon={<IconKey className="w-5 h-5" />}
-            title="Add your OpenRouter key to begin"
-            body="The chat uses your own free OpenRouter API key. It stays in this browser only — never on any server."
-          />
-          <button
-            onClick={onSettings}
-            className="w-full rounded-2xl bg-glow-400 text-night-950 font-semibold px-4 py-3.5 hover:bg-glow-300"
-          >
-            Go to Settings
-          </button>
-          <p className="text-xs text-mist-600 mt-3 leading-relaxed">
-            Get a free key at openrouter.ai, then paste it into Settings. The
-            default model is a free one; you can change it there too.
-          </p>
-        </Card>
-        <SafetyNote />
-      </Screen>
-    );
-  }
-
   return (
     <Screen className="flex flex-col min-h-dvh">
       <PageHeader
@@ -185,40 +176,86 @@ export default function AIChat({
         }
       />
 
-      <div className="flex-1 space-y-3 mb-4">
-        {messages.length === 0 && (
-          <Card>
+      {!hasKey && (
+        <Card className="mb-4 !p-4">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-glow-400/20 bg-glow-500/10 text-glow-300">
+              <IconKey className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-mist-50">Add an OpenRouter key to send messages</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-mist-500">
+                Your saved chat history remains available. Add a key in Settings to continue chatting.
+              </p>
+            </div>
+            <button
+              onClick={onSettings}
+              className="shrink-0 rounded-xl bg-glow-400 px-3 py-2 text-xs font-semibold text-night-950 hover:bg-glow-300"
+            >
+              Settings
+            </button>
+          </div>
+        </Card>
+      )}
+
+      {(messagesError || settingsError) && (
+        <p className="mb-3 rounded-2xl border border-rosesoft-300/25 bg-rosesoft-300/10 px-3.5 py-2.5 text-sm text-rosesoft-300">
+          {messagesError
+            ? `Could not load your chat history: ${messagesError}`
+            : `Could not sync chat settings: ${settingsError}`}
+        </p>
+      )}
+
+      <div className="mb-4 flex-1 space-y-3">
+        <div className="max-h-[55dvh] min-h-[35dvh] space-y-3 overflow-y-auto rounded-3xl border border-white/5 bg-night-900/30 p-3 sm:p-5">
+          {sortedMessages.length === 0 && !loading && (
             <EmptyState
               icon={<IconChat className="w-5 h-5" />}
               title="How are you feeling right now?"
               body="Tell me what is on your mind, and we will look at it together — one small step at a time."
             />
-          </Card>
-        )}
-        {messages.map((m) => (
-          <div
-            key={m.id}
-            className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+          )}
+          {loading && sortedMessages.length === 0 && (
+            <div className="flex justify-center py-6">
+              <div className="h-7 w-7 rounded-full border-2 border-glow-400/30 border-t-glow-400 animate-spin" />
+            </div>
+          )}
+          {sortedMessages.map((m) => (
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-line ${
-                m.role === 'user'
-                  ? 'bg-glow-400/15 border border-glow-400/25 text-mist-50 rounded-br-md'
-                  : 'bg-night-800/70 border border-white/5 text-mist-100 rounded-bl-md'
-              }`}
+              key={m.id}
+              className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {m.content}
+              <div
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-line ${
+                  m.role === 'user'
+                    ? 'bg-glow-400/15 border border-glow-400/25 text-mist-50 rounded-br-md'
+                    : 'bg-night-800/70 border border-white/5 text-mist-100 rounded-bl-md'
+                }`}
+              >
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider opacity-70">
+                  {m.role === 'user' ? 'You' : 'Reflection companion'}
+                </p>
+                {m.content}
+                <div
+                  className={`mt-1.5 flex items-center justify-end gap-1 text-[10px] uppercase tracking-wide ${
+                    m.role === 'user' ? 'text-glow-300/70' : 'text-mist-600'
+                  }`}
+                >
+                  <span>{formatDateTime(m.timestamp ?? m.createdAt)}</span>
+                  {m.role === 'user' ? <IconSent className="w-3 h-3 opacity-70" /> : null}
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
-        {sending && (
-          <div className="flex justify-start">
-            <div className="bg-night-800/70 border border-white/5 rounded-2xl px-4 py-2.5 text-sm text-mist-500">
-              Thinking…
+          ))}
+          {sending && (
+            <div className="flex justify-start">
+              <div className="bg-night-800/70 border border-white/5 rounded-2xl px-4 py-2.5 text-sm text-mist-500">
+                Thinking…
+              </div>
             </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
+          )}
+          <div ref={bottomRef} />
+        </div>
       </div>
 
       {error && (
@@ -227,7 +264,7 @@ export default function AIChat({
         </p>
       )}
 
-      <div className="sticky bottom-[calc(5.4rem+env(safe-area-inset-bottom))] pb-2">
+      <div className="sticky bottom-[calc(5.4rem+env(safe-area-inset-bottom))] rounded-3xl border border-white/10 bg-night-950/95 p-3 pb-2 shadow-xl backdrop-blur">
         <div className="flex gap-2">
           <input
             value={input}
@@ -239,12 +276,12 @@ export default function AIChat({
               }
             }}
             placeholder="Write what's on your mind…"
-            disabled={sending}
+            disabled={sending || !hasKey}
             className="!py-3.5"
           />
           <button
             onClick={send}
-            disabled={sending || !input.trim()}
+            disabled={sending || !hasKey || !input.trim()}
             aria-label="Send"
             className="shrink-0 w-12 rounded-2xl bg-glow-400 hover:bg-glow-300 disabled:opacity-50 text-night-950 grid place-items-center"
           >
@@ -252,7 +289,7 @@ export default function AIChat({
           </button>
         </div>
         <GhostButton onClick={onSettings} className="mt-2 !py-1.5 !text-xs">
-          Change API key / model in Settings
+          {hasKey ? 'Change API key / model in Settings' : 'Open chat settings'}
         </GhostButton>
       </div>
 

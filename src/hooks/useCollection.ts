@@ -1,6 +1,6 @@
 /**
  * useCollection — live Firestore subscription for one per-user collection.
- * Returns the documents (newest first) plus a loading flag.
+ * Returns the documents in chronological order (oldest first) plus a loading flag.
  */
 import { onSnapshot, orderBy, query } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
@@ -14,16 +14,20 @@ export function useCollection<T extends { createdAt?: number }>(
 ) {
   const [items, setItems] = useState<WithId<T>[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (!uid) {
       setItems([]);
       setLoading(false);
+      setError('');
       return;
     }
+    setLoading(true);
+    setError('');
     const q = query(
       collection(db, 'users', uid, collectionName),
-      orderBy('createdAt', 'desc'),
+      orderBy('createdAt', 'asc'),
     );
     const unsub = onSnapshot(
       q,
@@ -33,10 +37,13 @@ export function useCollection<T extends { createdAt?: number }>(
         );
         setLoading(false);
       },
-      () => setLoading(false),
+      (snapshotError) => {
+        setError(snapshotError.message);
+        setLoading(false);
+      },
     );
     return unsub;
   }, [uid, collectionName]);
 
-  return { items, loading };
+  return { items, loading, error };
 }

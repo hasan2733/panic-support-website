@@ -12,7 +12,14 @@ import {
   wipeUserData,
 } from '../lib/db';
 import type { PlanDoc } from '../types';
-import { getStoredKey, getStoredModel } from './AIChat';
+import {
+  clearSyncedSettings,
+  getStoredKey,
+  getStoredModel,
+  pushSyncedSettings,
+  setSyncPref,
+  useSyncedSettings,
+} from '../hooks/useSyncedSettings';
 import {
   Card,
   Field,
@@ -30,11 +37,14 @@ export default function Settings() {
   const { user, logOut } = useAuth();
   const { theme, fontSize, setTheme, setFontSize } = useAppearance();
   const uid = user?.uid ?? null;
+  const { enabled: syncedSettings, error: syncError } = useSyncedSettings(uid);
 
-  // OpenRouter key (stored ONLY in this browser's localStorage).
+  // OpenRouter key (local by default; account-synced when enabled).
   const [key, setKey] = useState('');
   const [keySaved, setKeySaved] = useState(false);
   const [model, setModel] = useState('');
+  const [sync, setSync] = useState(false);
+  const [syncActionError, setSyncActionError] = useState('');
 
   // Safety plan (stored in Firestore under the user's own tree).
   const [steps, setSteps] = useState('');
@@ -66,19 +76,86 @@ export default function Settings() {
     });
   }, [uid]);
 
-  const saveKey = () => {
-    if (key.trim()) {
-      localStorage.setItem(KEY_STORAGE, key.trim());
-      setKey('');
-      setKeySaved(true);
+  useEffect(() => {
+    setSync(syncedSettings);
+    setKeySaved(getStoredKey().length > 0);
+    setModel(getStoredModel());
+  }, [syncedSettings]);
+
+  const saveKey = async () => {
+    const trimmed = key.trim();
+    if (!trimmed) return;
+    localStorage.setItem(KEY_STORAGE, trimmed);
+    setKey('');
+    setKeySaved(true);
+    setSyncActionError('');
+    if (sync) {
+      try {
+        await pushSyncedSettings(uid, trimmed, getStoredModel());
+      } catch (error) {
+        setSyncActionError(
+          `Key saved on this device, but could not sync: ${
+            error instanceof Error ? error.message : 'Unknown error.'
+          }`,
+        );
+      }
     }
   };
-  const clearKey = () => {
+  const clearKey = async () => {
+    setSyncActionError('');
+    if (sync) {
+      try {
+        await clearSyncedSettings(uid);
+        setSync(false);
+        setSyncPref(false);
+      } catch (error) {
+        setSyncActionError(
+          `Could not remove the synced key: ${
+            error instanceof Error ? error.message : 'Unknown error.'
+          }`,
+        );
+        return;
+      }
+    }
     localStorage.removeItem(KEY_STORAGE);
     setKeySaved(false);
   };
-  const saveModel = () => {
-    localStorage.setItem(MODEL_STORAGE, model.trim() || 'openai/gpt-oss-20b:free');
+  const saveModel = async () => {
+    const value = model.trim() || 'openai/gpt-oss-20b:free';
+    localStorage.setItem(MODEL_STORAGE, value);
+    setSyncActionError('');
+    if (sync) {
+      try {
+        await pushSyncedSettings(uid, getStoredKey(), value);
+      } catch (error) {
+        setSyncActionError(
+          `Model saved on this device, but could not sync: ${
+            error instanceof Error ? error.message : 'Unknown error.'
+          }`,
+        );
+      }
+    }
+  };
+  const toggleSync = async (on: boolean) => {
+    setSyncActionError('');
+    setSync(on);
+    setSyncPref(on);
+    try {
+      if (on) {
+        // Push the current key/model so other signed-in devices can read them.
+        await pushSyncedSettings(uid, getStoredKey(), getStoredModel());
+      } else {
+        await clearSyncedSettings(uid);
+      }
+    } catch (error) {
+      setSync(!on);
+      setSyncPref(!on);
+      setSyncActionError(
+        `Could not ${on ? 'enable' : 'disable'} account sync: ${
+          error instanceof Error ? error.message : 'Unknown error.'
+        }`,
+      );
+    }
   };
 
   const savePlan = async () => {
@@ -111,10 +188,14 @@ export default function Settings() {
   const doWipe = async () => {
     if (!uid) return;
     await wipeUserData(uid);
+    await clearSyncedSettings(uid);
     setConfirmWipe(false);
     // Also clear local chat settings for a full reset.
     localStorage.removeItem(KEY_STORAGE);
+    localStorage.removeItem(MODEL_STORAGE);
     setKeySaved(false);
+    setSync(false);
+    setSyncPref(false);
   };
 
   return (
@@ -122,7 +203,7 @@ export default function Settings() {
       <PageHeader
         kicker="Account"
         title="Settings"
-        sub="Your keys stay in this browser. Your notes stay in your account."
+        sub="Your keys stay on this device unless you enable account sync. Your notes stay in your account."
       />
 
       <Card className="mb-4">
@@ -167,8 +248,10 @@ export default function Settings() {
       <Card className="mb-4">
         <h3 className="font-display text-lg text-mist-50 mb-1">AI chat key</h3>
         <p className="text-xs text-mist-600 mb-3 leading-relaxed">
-          Your own free OpenRouter API key. Stored only in this browser, shown
-          masked, never sent anywhere except OpenRouter.
+          Your own OpenRouter API key. Stored in this browser by default. If
+          account sync is enabled, it is also stored in your private account
+          settings and copied to your signed-in devices. The key is sent to
+          OpenRouter when you chat.
         </p>
         {keySaved ? (
           <div className="flex items-center justify-between gap-2">
@@ -214,6 +297,37 @@ export default function Settings() {
             </button>
           </div>
         </Field>
+        <div className="mt-4 rounded-2xl border border-white/5 p-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm text-mist-100 font-medium">Sync across devices</p>
+              <p className="text-xs text-mist-600 mt-0.5 leading-relaxed">
+                Save your key + model to your account so other devices where you
+                sign in can read them. Your account settings are protected by
+                your sign-in. Enable this on the device that already has your
+                key; other signed-in devices will load the saved settings automatically.
+              </p>
+            </div>
+            <button
+              onClick={() => toggleSync(!sync)}
+              className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border transition-colors ${
+                sync ? 'bg-glow-400 border-glow-400' : 'bg-night-700 border-white/10'
+              }`}
+              aria-pressed={sync}
+            >
+              <span
+                className={`absolute top-0.5 h-6 w-6 rounded-full bg-night-950 transition-transform ${
+                  sync ? 'translate-x-6' : 'translate-x-0.5'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+        {(syncError || syncActionError) && (
+          <p className="mt-2 text-xs text-rosesoft-300">
+            {syncActionError || `Could not load synced chat settings: ${syncError}`}
+          </p>
+        )}
       </Card>
 
       {/* Safety plan */}

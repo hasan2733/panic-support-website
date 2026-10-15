@@ -136,6 +136,24 @@ export function IconSend({ className }: { className?: string }) {
   );
 }
 
+/** A single checkmark — used to show a user message has been sent. */
+export function IconSent({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d="M5 12.5l4 4L19 7" />
+    </svg>
+  );
+}
+
 export function IconCheck({ className }: { className?: string }) {
   return (
     <Icon className={className}>
