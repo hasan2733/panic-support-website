@@ -1,8 +1,26 @@
 # Panic Support Website
 
-A personal mental-health support web app for managing panic symptoms, building calm habits, and practicing CBT-based coping strategies. It is designed to support the user in building confidence and resilience, not to replace professional care or clinical treatment.
+A personal mental-health support web app for managing panic symptoms, building calm habits, and practicing CBT-inspired coping strategies. The app is designed to help users feel more grounded, track patterns, and access supportive tools in a low-pressure environment.
 
 > Safety note: This app is a support tool, not medical advice, not a diagnosis, and not a replacement for professional treatment.
+
+## Repository snapshot
+
+This project is primarily a TypeScript app, with the following language composition:
+
+- TypeScript: 96.3%
+- CSS: 3.2%
+- HTML: 0.5%
+
+## Why this app exists
+
+Panic Support Website is built around the idea that people managing panic and anxiety benefit from a small, accessible set of daily tools:
+
+- calming exercises during a panic episode
+- emotional reflection and journaling
+- structured coping techniques
+- progress tracking over time
+- supportive, privacy-aware personal data management
 
 ## Features
 
@@ -17,7 +35,7 @@ A personal mental-health support web app for managing panic symptoms, building c
 - AI-powered reflection chat using the user's own OpenRouter API key
 - Settings for appearance, text size, safety plan, data export, and cleanup
 
-## Tech Stack
+## Tech stack
 
 - React 19
 - TypeScript
@@ -25,7 +43,7 @@ A personal mental-health support web app for managing panic symptoms, building c
 - Firebase Authentication + Firestore
 - Tailwind CSS
 
-## Project Structure
+## Project structure
 
 ```text
 src/
@@ -49,7 +67,7 @@ README.md
 - npm
 - Firebase project
 
-## Local Setup
+## Local setup
 
 ```bash
 npm install
@@ -63,7 +81,7 @@ Then open the local URL shown in the terminal, typically:
 http://localhost:5173
 ```
 
-## Firebase Setup
+## Firebase setup
 
 1. Create a Firebase project in the Firebase Console.
 2. Enable Authentication → Email/Password.
@@ -107,7 +125,7 @@ vercel --prod
 
 Set `VITE_FIREBASE_*` environment variables in the Vercel project settings if you are not using the bundled Firebase project config.
 
-## Privacy and Data Safety
+## Privacy and data safety
 
 - User data is stored in Firestore under `users/{uid}/...`.
 - The checked-in rule file restricts access so each signed-in user only sees their own data.
@@ -115,7 +133,7 @@ Set `VITE_FIREBASE_*` environment variables in the Vercel project settings if yo
 - Do not commit real `.env` files, JSON exports, or user data.
 - Verify that no secrets or personal information remain in the git history before making the repository public.
 
-## Security Recommendations Before Public Release
+## Security recommendations before public release
 
 Before publishing this repository publicly, review the following:
 
@@ -125,17 +143,17 @@ Before publishing this repository publicly, review the following:
 - Verify all included audio files, translations, and references have appropriate licensing or permissions.
 - Add a `LICENSE`, `SECURITY.md`, and issue templates for public collaboration.
 
-## Notes for Developers
+## Notes for developers
 
 - The app uses Firebase client SDKs for authentication and Firestore.
-- The app is designed for a single user experience with personal data separation.
+- The app is designed for a single-user experience with personal data separation.
 - The optional Faith Corner uses fixed and verified religious content only; the AI chat is explicitly restricted from generating religious text.
 
 ## License
 
-This project does not currently include a license file. If you intend to publish it publicly or accept contributions, add a LICENSE file before release.
+This project does not currently include a license file. If you intend to publish it publicly or accept contributions, add a `LICENSE` file before release.
 
-## Suggested Next Steps
+## Suggested next steps
 
 - Add a `LICENSE` file
 - Add `SECURITY.md`
@@ -143,4 +161,3 @@ This project does not currently include a license file. If you intend to publish
 - Add `CODE_OF_CONDUCT.md`
 - Run a dependency security audit
 - Add CI checks for lint and build
-
