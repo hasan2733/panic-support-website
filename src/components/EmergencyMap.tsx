@@ -103,7 +103,7 @@ export function EmergencyMap() {
                 distanceKm: distanceKm(current, { latitude, longitude }),
               };
             })
-            .filter((hospital): hospital is Hospital => hospital !== null)
+            .filter((hospital): hospital is NonNullable<typeof hospital> => hospital !== null)
             .sort((a, b) => a.distanceKm - b.distanceKm)
             .slice(0, 5);
           setHospitals(nearest);
@@ -172,9 +172,11 @@ export function EmergencyMap() {
       )}
 
       {loading && (
-        <Card className="mb-4 flex items-center gap-3 text-sm text-mist-300" role="status">
-          <span className="h-5 w-5 animate-spin rounded-full border-2 border-glow-300/30 border-t-glow-300" />
-          Finding your location and nearby hospitals…
+        <Card className="mb-4">
+          <div role="status" className="flex items-center gap-3 text-sm text-mist-300">
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-glow-300/30 border-t-glow-300" />
+            Finding your location and nearby hospitals…
+          </div>
         </Card>
       )}
 
