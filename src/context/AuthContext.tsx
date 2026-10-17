@@ -8,6 +8,7 @@ import {
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
+  updateProfile,
   type User,
 } from 'firebase/auth';
 import {
@@ -22,10 +23,12 @@ import { auth } from '../lib/firebase';
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<void>;
+  authError: string | null;
+  signUp: (email: string, password: string, nickname: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   logOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  updateNickname: (nickname: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -58,14 +61,44 @@ export function friendlyAuthError(code: string): string {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [, setProfileVersion] = useState(0);
 
   useEffect(() => {
-    // Keep the React state in sync with Firebase's persisted session.
-    const unsub = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-    });
-    return unsub;
+    let initialized = false;
+    const timeout = window.setTimeout(() => {
+      if (!initialized) {
+        setAuthError(
+          'Sign-in is taking longer than expected. Check your connection, then reload the app and try again.',
+        );
+        setLoading(false);
+      }
+    }, 10_000);
+
+    const unsub = onAuthStateChanged(
+      auth,
+      (u) => {
+        initialized = true;
+        window.clearTimeout(timeout);
+        setUser(u);
+        setAuthError(null);
+        setLoading(false);
+      },
+      (error) => {
+        initialized = true;
+        window.clearTimeout(timeout);
+        console.error('Firebase auth state initialization failed.', error);
+        setAuthError(
+          'Unable to check your sign-in status. Check your connection and reload the app.',
+        );
+        setLoading(false);
+      },
+    );
+
+    return () => {
+      window.clearTimeout(timeout);
+      unsub();
+    };
   }, []);
 
   const wrap = async (fn: () => Promise<unknown>) => {
@@ -83,12 +116,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextValue = {
     user,
     loading,
-    signUp: (email, password) =>
-      wrap(() => createUserWithEmailAndPassword(auth, email, password)),
+    authError,
+    signUp: (email, password, nickname) =>
+      wrap(async () => {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(userCredential.user, { displayName: nickname.trim() });
+        setUser(auth.currentUser);
+        setProfileVersion((version) => version + 1);
+        return userCredential;
+      }),
     signIn: (email, password) =>
       wrap(() => signInWithEmailAndPassword(auth, email, password)),
     logOut: () => wrap(() => signOut(auth)),
     resetPassword: (email) => wrap(() => sendPasswordResetEmail(auth, email)),
+    updateNickname: (nickname) =>
+      wrap(async () => {
+        if (user) {
+          await updateProfile(user, { displayName: nickname.trim() });
+          await user.reload();
+          setAuthError(null);
+          setUser(auth.currentUser);
+          setProfileVersion((version) => version + 1);
+        }
+      }),
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

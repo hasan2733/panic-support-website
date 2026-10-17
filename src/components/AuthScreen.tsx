@@ -7,11 +7,16 @@ import { Card, Field, LogoMark, PrimaryButton, SafetyNote } from './ui';
 
 type Mode = 'signin' | 'signup' | 'reset';
 
-export default function AuthScreen() {
+export default function AuthScreen({
+  startupError,
+}: {
+  startupError?: string | null;
+}) {
   const { signIn, signUp, resetPassword } = useAuth();
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [nickname, setNickname] = useState('');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [busy, setBusy] = useState(false);
@@ -20,10 +25,14 @@ export default function AuthScreen() {
     e.preventDefault();
     setError('');
     setInfo('');
+    if (mode === 'signup' && !nickname.trim()) {
+      setError('Please enter your name to create your account.');
+      return;
+    }
     setBusy(true);
     try {
       if (mode === 'signin') await signIn(email.trim(), password);
-      else if (mode === 'signup') await signUp(email.trim(), password);
+      else if (mode === 'signup') await signUp(email.trim(), password, nickname.trim());
       else {
         await resetPassword(email.trim());
         setInfo('Password reset email sent. Check your inbox.');
@@ -62,6 +71,21 @@ export default function AuthScreen() {
 
         <Card className="bg-glow-500/5">
           <h2 className="font-display text-xl text-mist-50 mb-5">{titles[mode]}</h2>
+          {startupError && (
+            <div
+              role="alert"
+              className="text-sm text-rosesoft-300 bg-rosesoft-300/10 border border-rosesoft-300/25 rounded-2xl px-3.5 py-2.5 mb-4"
+            >
+              <p>{startupError}</p>
+              <button
+                type="button"
+                className="underline underline-offset-2 mt-2"
+                onClick={() => window.location.reload()}
+              >
+                Reload app
+              </button>
+            </div>
+          )}
           <form onSubmit={submit}>
             <Field label="Email">
               <input
@@ -73,6 +97,18 @@ export default function AuthScreen() {
                 autoComplete="email"
               />
             </Field>
+            {mode === 'signup' && (
+              <Field label="Your name">
+                <input
+                  type="text"
+                  required
+                  value={nickname}
+                  onChange={(e) => setNickname(e.target.value)}
+                  placeholder="Name shown on your dashboard"
+                  autoComplete="name"
+                />
+              </Field>
+            )}
             {mode !== 'reset' && (
               <Field label="Password" hint={mode === 'signup' ? 'At least 6 characters.' : undefined}>
                 <input

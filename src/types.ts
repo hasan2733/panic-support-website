@@ -37,6 +37,7 @@ export interface PracticeSession {
   techniqueId: string;
   kind: 'technique' | 'meditation' | 'small-step';
   minutes?: number;
+  practicedOn?: string;
   createdAt: number;
 }
 
@@ -84,4 +85,4 @@ export type WithId<T> = T & { id: string };
 export type TabId = 'home' | 'journal' | 'practice' | 'learn' | 'chat' | 'more';
 
 /** Secondary screens reachable from the "More" menu. */
-export type MoreView = 'episodes' | 'faith' | 'settings' | null;
+export type MoreView = 'episodes' | 'faith' | 'settings' | 'emergency-map' | null;

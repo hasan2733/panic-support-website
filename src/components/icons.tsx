@@ -212,3 +212,12 @@ export function IconStar({ className, filled }: { className?: string; filled?: b
     </svg>
   );
 }
+
+export function IconHeadphones({ className }: { className?: string }) {
+  return (
+    <Icon className={className}>
+      <path d="M4 12v2a3 3 0 0 0 3 3v-5M17 12v2a3 3 0 0 0 3 3v-5" />
+      <path d="M12 2C8 2 5 5 5 8v4a3 3 0 0 0 3 3h8a3 3 0 0 0 3-3V8c0-3-3-6-7-6z" />
+    </Icon>
+  );
+}

@@ -59,6 +59,7 @@ export default function Dashboard({
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  const displayName = user?.displayName || user?.email?.split('@')[0] || 'Friend';
 
   const stepIndex = useMemo(() => {
     const dayNum = Math.floor(Date.now() / 86400000);
@@ -132,7 +133,7 @@ export default function Dashboard({
     <Screen>
       <PageHeader
         kicker={greeting}
-        title="My recovery space"
+        title={displayName}
         sub="Progress here means growing confidence and doing more of what matters — not chasing zero anxiety."
       />
 

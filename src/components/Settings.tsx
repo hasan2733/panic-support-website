@@ -32,9 +32,11 @@ import {
 
 const KEY_STORAGE = 'psw_openrouter_key';
 const MODEL_STORAGE = 'psw_openrouter_model';
+const emergencyContactsStorageKey = (uid: string | null) =>
+  `psw_emergency_contacts_${uid ?? 'guest'}`;
 
 export default function Settings() {
-  const { user, logOut } = useAuth();
+  const { user, logOut, updateNickname } = useAuth();
   const { theme, fontSize, setTheme, setFontSize } = useAppearance();
   const uid = user?.uid ?? null;
   const { enabled: syncedSettings, error: syncError } = useSyncedSettings(uid);
@@ -45,6 +47,20 @@ export default function Settings() {
   const [model, setModel] = useState('');
   const [sync, setSync] = useState(false);
   const [syncActionError, setSyncActionError] = useState('');
+
+  // Nickname editing
+  const [nickname, setNickname] = useState(user?.displayName ?? '');
+  const [nicknameSaving, setNicknameSaving] = useState(false);
+  const [profileMsg, setProfileMsg] = useState('');
+  const [emergencyContacts, setEmergencyContacts] = useState(() => {
+    try {
+      return localStorage.getItem(emergencyContactsStorageKey(uid)) ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const [contactsSaved, setContactsSaved] = useState(false);
+  const [contactsError, setContactsError] = useState('');
 
   // Safety plan (stored in Firestore under the user's own tree).
   const [steps, setSteps] = useState('');
@@ -99,6 +115,43 @@ export default function Settings() {
           }`,
         );
       }
+    }
+  };
+
+  const saveNickname = async () => {
+    if (!uid || !nickname.trim()) return;
+    setNicknameSaving(true);
+    try {
+      await updateNickname(nickname.trim());
+      setNicknameSaving(false);
+      setProfileMsg('Name saved.');
+      window.setTimeout(() => setProfileMsg(''), 3000);
+    } catch (error) {
+      setNicknameSaving(false);
+      setProfileMsg(
+        `Failed to save nickname: ${
+          error instanceof Error ? error.message : 'Unknown error.'
+        }`,
+      );
+    }
+  };
+  const saveEmergencyContacts = () => {
+    setContactsError('');
+    const lines = emergencyContacts.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    const invalidLine = lines.find((line) => {
+      const email = line.match(/<([^<>]+)>$/)?.[1] ?? line;
+      return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    });
+    if (invalidLine) {
+      setContactsError(`Check this email address: ${invalidLine}`);
+      return;
+    }
+    try {
+      localStorage.setItem(emergencyContactsStorageKey(uid), emergencyContacts.trim());
+      setContactsSaved(true);
+      window.setTimeout(() => setContactsSaved(false), 3000);
+    } catch {
+      setContactsError('Could not save contacts in this browser.');
     }
   };
   const clearKey = async () => {
@@ -193,6 +246,7 @@ export default function Settings() {
     // Also clear local chat settings for a full reset.
     localStorage.removeItem(KEY_STORAGE);
     localStorage.removeItem(MODEL_STORAGE);
+    localStorage.removeItem(emergencyContactsStorageKey(uid));
     setKeySaved(false);
     setSync(false);
     setSyncPref(false);
@@ -211,38 +265,71 @@ export default function Settings() {
         <p className="mb-4 text-sm leading-relaxed text-mist-500">
           These preferences apply throughout the app and stay saved on this device.
         </p>
-        <Field label="Theme">
-          <select
-            value={theme}
-            onChange={(event) => {
-              const value = event.currentTarget.value;
-              if (value === 'day' || value === 'night' || value === 'read') {
-                setTheme(value);
-              }
-            }}
-            aria-label="Color theme"
-          >
-            <option value="day">Day — light and fresh</option>
-            <option value="night">Night — low-light colors</option>
-            <option value="read">Read — warm paper tones</option>
-          </select>
-        </Field>
-        <Field label="Text size" hint="Choose a comfortable size. Larger sizes also increase spacing.">
-          <select
-            value={fontSize}
-            onChange={(event) => {
-              const value = event.currentTarget.value;
-              if (value === 'normal' || value === 'large' || value === 'larger') {
-                setFontSize(value);
-              }
-            }}
-            aria-label="Text size"
-          >
-            <option value="normal">Normal</option>
-            <option value="large">Large</option>
-            <option value="larger">Extra large</option>
-          </select>
-        </Field>
+        <fieldset className="mb-4">
+          <legend className="mb-1.5 text-sm font-medium text-mist-300">Theme</legend>
+          <div className="flex flex-col gap-2">
+            {(['day', 'night', 'read'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTheme(t)}
+                aria-pressed={theme === t}
+                className={`flex items-center gap-3 rounded-xl p-3 text-left transition-all ${
+                  theme === t
+                    ? 'border-2 border-glow-300 bg-gradient-to-r from-glow-400/20 to-glow-500/5 shadow-[0_0_0_2px_rgba(151,190,144,0.08)]'
+                    : 'border border-white/10 bg-night-950/60 hover:border-glow-400/30 hover:bg-night-900/80'
+                }`}
+              >
+                <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl border ${
+                  t === 'day'
+                    ? 'border-amber-200 bg-amber-100 text-amber-700'
+                    : t === 'read'
+                      ? 'border-orange-200 bg-orange-100 text-orange-800'
+                      : 'border-slate-600 bg-slate-800 text-slate-100'
+                }`}>
+                  <span aria-hidden="true">{t === 'day' ? '☀' : t === 'night' ? '☾' : '▤'}</span>
+                </span>
+                <span className="flex-1 text-sm font-medium text-mist-100">
+                  {t === 'day' ? 'Day — light and fresh' : t === 'night' ? 'Night — low-light colors' : 'Read — warm paper tones'}
+                </span>
+                {theme === t && (
+                  <svg className="h-4 w-4 text-glow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7 7 7-7" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset className="mb-4">
+          <legend className="text-sm font-medium text-mist-300">Text size</legend>
+          <p className="mb-1.5 mt-1 text-xs leading-relaxed text-mist-500">
+            Choose a comfortable size. Larger sizes also increase spacing.
+          </p>
+          <div className="flex flex-col gap-2">
+            {(['normal', 'large', 'larger'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFontSize(f)}
+                aria-pressed={fontSize === f}
+                className={`flex items-center gap-3 rounded-xl p-3 text-left transition-all ${
+                  fontSize === f
+                    ? 'border-2 border-glow-300 bg-gradient-to-r from-glow-400/20 to-glow-500/5 shadow-[0_0_0_2px_rgba(151,190,144,0.08)]'
+                    : 'border border-white/10 bg-night-950/60 hover:border-glow-400/30 hover:bg-night-900/80'
+                }`}
+              >
+                <span className="text-xs text-mist-500 w-16">{f === 'normal' ? 'Normal' : f === 'large' ? 'Large' : 'XL'}</span>
+                <span className="flex-1 text-sm font-medium text-mist-100">
+                  {f === 'normal' ? 'Normal (16px)' : f === 'large' ? 'Large (18px)' : 'Extra large (20px)'}
+                </span>
+                {fontSize === f && (
+                  <svg className="h-4 w-4 text-glow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7 7 7-7" />
+                  </svg>
+                )}
+              </button>
+            ))}
+          </div>
+        </fieldset>
       </Card>
 
       <Card className="mb-4">
@@ -363,6 +450,58 @@ export default function Settings() {
         </Field>
         <PrimaryButton onClick={savePlan}>Save safety plan</PrimaryButton>
         {planMsg && <p className="text-sm text-glow-300 mt-2">{planMsg}</p>}
+      </Card>
+
+      {/* Profile */}
+      <Card className="mb-4">
+        <h3 className="font-display text-lg text-mist-50 mb-1">Profile</h3>
+        <p className="text-xs text-mist-600 mb-3 leading-relaxed">
+          This is the name shown on your dashboard.
+        </p>
+        <Field label="Dashboard name">
+          <input
+            type="text"
+            required
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            placeholder="Your name"
+            className={nicknameSaving ? 'opacity-50' : ''}
+          />
+          {nicknameSaving && (
+            <span className="text-xs text-glow-300 ml-2">Saving...</span>
+          )}
+        </Field>
+        {profileMsg && (
+          <p role="status" className={`text-sm mt-2 ${
+            profileMsg === 'Name saved.' ? 'text-glow-300' : 'text-rosesoft-300'
+          }`}>
+            {profileMsg}
+          </p>
+        )}
+        <PrimaryButton onClick={saveNickname} disabled={nicknameSaving || !nickname.trim()}>
+          {nicknameSaving ? 'Saving...' : 'Save name'}
+        </PrimaryButton>
+      </Card>
+
+      <Card className="mb-4">
+        <h3 className="font-display text-lg text-mist-50 mb-1">Emergency email contacts</h3>
+        <p className="text-xs text-mist-500 mb-3 leading-relaxed">
+          Stored only in this browser. Add one contact per line as an email or
+          <span className="text-mist-300"> Name &lt;email@example.com&gt;</span>.
+          The emergency button opens a pre-filled email in your mail app for you to send.
+        </p>
+        <Field label="Email addresses">
+          <textarea
+            rows={4}
+            value={emergencyContacts}
+            onChange={(event) => setEmergencyContacts(event.target.value)}
+            placeholder={'Parent <parent@example.com>\nFriend <friend@example.com>'}
+            autoComplete="off"
+          />
+        </Field>
+        <PrimaryButton onClick={saveEmergencyContacts}>Save emergency contacts</PrimaryButton>
+        {contactsSaved && <p role="status" className="mt-2 text-sm text-glow-300">Contacts saved on this device.</p>}
+        {contactsError && <p role="alert" className="mt-2 text-sm text-rosesoft-300">{contactsError}</p>}
       </Card>
 
       {/* Data controls */}

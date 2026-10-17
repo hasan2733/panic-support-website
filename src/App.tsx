@@ -1,8 +1,9 @@
 /**
  * App shell: auth gating, bottom tab navigation, Panic Mode overlay,
  * and a floating "need help now" button visible on every screen.
+ * Also listens for emergency alert events.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AuthScreen from './components/AuthScreen';
 import Dashboard from './components/Dashboard';
@@ -16,16 +17,30 @@ import TabBar from './components/TabBar';
 import AIChat from './components/AIChat';
 import ThoughtJournal from './components/ThoughtJournal';
 import { AppearanceProvider } from './context/AppearanceContext';
-import { IconHelp } from './components/icons';
+import { IconGround, IconHelp } from './components/icons';
 import { LogoMark } from './components/ui';
 import type { MoreView, TabId } from './types';
+import { EmergencyMap } from './components/EmergencyMap';
+import { EmergencyNotification } from './components/EmergencyNotification';
 
 function Shell() {
-  const { user, loading } = useAuth();
+  const { user, loading, authError } = useAuth();
   const [tab, setTab] = useState<TabId>('home');
   const [moreOpen, setMoreOpen] = useState(false);
   const [moreView, setMoreView] = useState<MoreView>(null);
+  const [navExpanded, setNavExpanded] = useState(true);
   const [panicOpen, setPanicOpen] = useState(false);
+  const [showEmergencyAlert, setShowEmergencyAlert] = useState(false);
+
+  useEffect(() => {
+    const handleEmergencyAlert = () => {
+      setShowEmergencyAlert(true);
+    };
+    window.addEventListener('open-emergency-alert', handleEmergencyAlert);
+    return () => {
+      window.removeEventListener('open-emergency-alert', handleEmergencyAlert);
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -40,7 +55,9 @@ function Shell() {
     );
   }
 
-  if (!user) return <AuthScreen />;
+  if (!user) {
+    return <AuthScreen startupError={authError} />;
+  }
 
   const goTab = (t: TabId) => {
     setTab(t);
@@ -66,6 +83,8 @@ function Shell() {
         return <FaithCorner />;
       case 'settings':
         return <Settings />;
+      case 'emergency-map':
+        return <EmergencyMap />;
       default:
         return null;
     }
@@ -90,8 +109,17 @@ function Shell() {
   };
 
   return (
-    <div className="min-h-dvh">
+    <div className={`min-h-dvh transition-[padding] ${navExpanded ? 'lg:pl-64' : 'lg:pl-20'}`}>
       {renderTab()}
+
+      <button
+        type="button"
+        onClick={() => setShowEmergencyAlert(true)}
+        aria-label="Open emergency email alert"
+        className="fixed right-4 top-4 z-40 grid h-12 w-12 place-items-center rounded-full border border-rosesoft-300/40 bg-rosesoft-300 text-white shadow-lg transition hover:bg-rosesoft-300/90"
+      >
+        <IconGround className="h-6 w-6" />
+      </button>
 
       {!panicOpen && (
         <button
@@ -106,12 +134,20 @@ function Shell() {
         </button>
       )}
 
+      {/* Emergency Alert Modal - shown when floating button is clicked */}
+      {showEmergencyAlert && (
+        <EmergencyNotification onClose={() => setShowEmergencyAlert(false)} />
+      )}
+
       <TabBar
         tab={tab}
+        moreView={moreView}
         onTab={goTab}
         moreOpen={moreOpen}
         onMoreOpen={setMoreOpen}
         onMoreSelect={goMore}
+        navExpanded={navExpanded}
+        onNavToggle={() => setNavExpanded((expanded) => !expanded)}
       />
 
       {panicOpen && (

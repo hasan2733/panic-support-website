@@ -11,7 +11,7 @@ export function Screen({
   className?: string;
 }) {
   return (
-    <div className={`relative mx-auto max-w-6xl px-5 pt-8 sm:px-8 lg:px-10 lg:pt-28 tabbar-pad ${className}`}>
+    <div className={`relative mx-auto max-w-6xl px-5 pt-8 sm:px-8 lg:px-10 lg:pt-8 tabbar-pad ${className}`}>
       {children}
     </div>
   );
