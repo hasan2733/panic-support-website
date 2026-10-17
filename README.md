@@ -1,8 +1,12 @@
 # Panic Support Website
 
-A personal mental-health support web app for managing panic symptoms, building calm habits, and practicing CBT-inspired coping strategies. The app is designed to help users feel more grounded, track patterns, and access supportive tools in a low-pressure environment.
+A personal mental-health support web app for managing panic symptoms, building calm habits, and practicing CBT-inspired coping strategies. The app is designed to help users feel more grounded, track patterns, and access short support tools whenever they need them.
 
 > Safety note: This app is a support tool, not medical advice, not a diagnosis, and not a replacement for professional treatment.
+
+## Live demo
+
+- Demo: https://anotherpanicattack.web.app/
 
 ## Repository snapshot
 
@@ -141,7 +145,7 @@ Before publishing this repository publicly, review the following:
 - Confirm your Firestore rules are deployed and correctly scoped to user data.
 - Check for secrets in git history and working tree.
 - Verify all included audio files, translations, and references have appropriate licensing or permissions.
-- Add a `LICENSE`, `SECURITY.md`, and issue templates for public collaboration.
+- Add `SECURITY.md`, and issue templates for public collaboration.
 
 ## Notes for developers
 
@@ -151,11 +155,10 @@ Before publishing this repository publicly, review the following:
 
 ## License
 
-This project does not currently include a license file. If you intend to publish it publicly or accept contributions, add a `LICENSE` file before release.
+This project is licensed under the MIT License. See the `LICENSE` file for details.
 
 ## Suggested next steps
 
-- Add a `LICENSE` file
 - Add `SECURITY.md`
 - Add `CONTRIBUTING.md`
 - Add `CODE_OF_CONDUCT.md`
